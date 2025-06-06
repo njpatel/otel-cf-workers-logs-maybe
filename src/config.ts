@@ -11,6 +11,8 @@ import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { ReadableSpan, Sampler, SpanExporter } from '@opentelemetry/sdk-trace-base'
 
 import { OTLPExporter } from './exporter.js'
+import { OTLPLogExporter } from './logexporter.js'
+import { BatchLogRecordProcessor } from './logprocessor.js'
 import { multiTailSampler, isHeadSampled, isRootErrorSpan, createSampler } from './sampling.js'
 import { BatchTraceSpanProcessor } from './spanprocessor.js'
 
@@ -45,6 +47,20 @@ export function parseConfig(supplied: TraceConfig): ResolvedTraceConfig {
 				'Warning! You must either specify an exporter or your own SpanProcessor(s)/Exporter combination in the open-telemetry configuration.',
 			)
 		}
+		const logProcessors = supplied.logProcessors
+			? Array.isArray(supplied.logProcessors)
+				? supplied.logProcessors
+				: [supplied.logProcessors]
+			: supplied.logExporter
+				? [
+						new BatchLogRecordProcessor(
+							supplied.logExporter instanceof OTLPLogExporter
+								? supplied.logExporter
+								: new OTLPLogExporter(supplied.logExporter),
+						),
+					]
+				: []
+
 		return {
 			fetch: {
 				includeTraceContext: supplied.fetch?.includeTraceContext ?? true,
@@ -61,6 +77,7 @@ export function parseConfig(supplied: TraceConfig): ResolvedTraceConfig {
 			},
 			service: supplied.service,
 			spanProcessors,
+			logProcessors,
 			propagator: supplied.propagator || new W3CTraceContextPropagator(),
 			instrumentation: {
 				instrumentGlobalCache: supplied.instrumentation?.instrumentGlobalCache ?? true,

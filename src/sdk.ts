@@ -1,8 +1,13 @@
 import { context as api_context, Exception, propagation, SpanStatusCode, trace } from '@opentelemetry/api'
+import { logs } from '@opentelemetry/api-logs'
 import { Resource, resourceFromAttributes } from '@opentelemetry/resources'
 
 import { Initialiser, parseConfig, setConfig } from './config.js'
 import { WorkerTracerProvider } from './provider.js'
+import { WorkerLoggerProvider } from './logger-provider.js'
+import { BatchLogRecordProcessor } from './logprocessor.js'
+import { OTLPLogExporter } from './logexporter.js'
+import { instrumentConsole } from './instrumentation/console.js'
 import { Trigger, ResolvedTraceConfig, OrPromise, HandlerInstrumentation, ConfigurationOption } from './types.js'
 import { unwrap } from './wrap.js'
 import { WorkerTracer } from './tracer.js'
@@ -94,6 +99,11 @@ function init(config: ResolvedTraceConfig): void {
 
 		const provider = new WorkerTracerProvider(config.spanProcessors, resource)
 		provider.register()
+		if (config.logProcessors.length > 0) {
+			const logProvider = new WorkerLoggerProvider(config.logProcessors, resource)
+			logProvider.register()
+			instrumentConsole()
+		}
 		initialised = true
 	}
 }
@@ -122,6 +132,15 @@ export async function exportSpans(traceId: string, tracker?: PromiseTracker) {
 		await tracer.forceFlush(traceId)
 	} else {
 		console.error('The global tracer is not of type WorkerTracer and can not export spans')
+	}
+}
+
+export async function exportLogs(tracker?: PromiseTracker) {
+	const provider = logs.getLoggerProvider()
+	if (provider instanceof WorkerLoggerProvider) {
+		await scheduler.wait(1)
+		await tracker?.wait()
+		await provider.forceFlush()
 	}
 }
 
@@ -172,6 +191,7 @@ function createHandlerFlowFn<T extends Trigger, E extends Env, R extends any>(
 			} finally {
 				span.end()
 				context.waitUntil(exportSpans(span.spanContext().traceId, tracker))
+				context.waitUntil(exportLogs(tracker))
 			}
 		})
 
