@@ -1,5 +1,7 @@
 import { Attributes, Context, SpanOptions, TextMapPropagator, Span } from '@opentelemetry/api'
 import { ReadableSpan, Sampler, SpanExporter, SpanProcessor } from '@opentelemetry/sdk-trace-base'
+import { LogRecordExporter, LogRecordProcessor } from '@opentelemetry/sdk-logs'
+import { OTLPLogExporterConfig } from './logexporter.js'
 import { OTLPExporterConfig } from './exporter.js'
 import { FetchHandlerConfig, FetcherConfig } from './instrumentation/fetch.js'
 import { TailSampleFn } from './sampling.js'
@@ -12,6 +14,7 @@ export type ConfigurationOption = TraceConfig | ResolveConfigFn
 export type PostProcessorFn = (spans: ReadableSpan[]) => ReadableSpan[]
 
 export type ExporterConfig = OTLPExporterConfig | SpanExporter
+export type LogExporterConfig = OTLPLogExporterConfig | LogRecordExporter
 
 export interface InitialSpanInfo {
 	name: string
@@ -63,6 +66,8 @@ interface TraceConfigBase {
 	sampling?: SamplingConfig
 	propagator?: TextMapPropagator
 	instrumentation?: InstrumentationOptions
+	logExporter?: LogExporterConfig
+	logProcessors?: LogRecordProcessor | LogRecordProcessor[]
 }
 
 interface TraceConfigExporter extends TraceConfigBase {
@@ -85,6 +90,7 @@ export interface ResolvedTraceConfig extends TraceConfigBase {
 	postProcessor: PostProcessorFn
 	sampling: Required<SamplingConfig<Sampler>>
 	spanProcessors: SpanProcessor[]
+	logProcessors: LogRecordProcessor[]
 	propagator: TextMapPropagator
 	instrumentation: InstrumentationOptions
 }
